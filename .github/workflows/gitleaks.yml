@@ -1,0 +1,47 @@
+name: Secret Scan with Gitleaks
+
+on:
+  push:
+    branches:
+      - "**"  # Runs on all branches
+  pull_request:
+    branches:
+      - "**"  # Runs on all pull requests
+
+jobs:
+  gitleaks_scan:
+    name: Run Gitleaks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Ensures full commit history for scanning
+
+      - name: Install Gitleaks
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks-linux-amd64 -o gitleaks
+          chmod +x gitleaks
+          sudo mv gitleaks /usr/local/bin/
+
+      - name: Run Gitleaks Scan
+        id: gitleaks
+        run: |
+          gitleaks detect --verbose --redact --report-format=json --report-path=gitleaks-report.json || echo "Gitleaks detected secrets!"
+
+      - name: Check for keyword "techopsapex"
+        run: |
+          if git log -p | grep -i "techopsapex"; then
+            echo "❌ Commit contains 'techopsapex'. Please review!"
+            exit 1
+          else
+            echo "✅ No keyword 'techopsapex' found."
+          fi
+
+      - name: Upload Gitleaks Report (if failed)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.json
